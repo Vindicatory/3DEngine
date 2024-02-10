@@ -1,13 +1,15 @@
 #include "SDL.h"
 #include <string>
+#include "render.h"
 
-int main(int argc, char* argv[])
+int main(/* no args for now */)
 {
-   (void)argc; (void)argv;
-
    SDL_Init(SDL_INIT_EVERYTHING);
-   SDL_Window* w = SDL_CreateWindow("quick", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_RESIZABLE);
-   SDL_Renderer* r = SDL_CreateRenderer(w, -1, 0);
+
+   rendWINDOW window{ SDL_CreateWindow("quick", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_RESIZABLE) };
+   window.GetPtr();
+
+   SDL_Renderer* r = SDL_CreateRenderer(window.GetPtr(), -1, 0);
 
    int counter = 0;
 
@@ -25,7 +27,7 @@ int main(int argc, char* argv[])
       }
 
       counter++;
-      SDL_SetWindowTitle(w, std::to_string(counter).c_str());
+      SDL_SetWindowTitle(window.GetPtr(), std::to_string(counter).c_str());
 
       SDL_RenderClear(r);
       SDL_SetRenderDrawColor(r, 144, 77, 122, 255);
