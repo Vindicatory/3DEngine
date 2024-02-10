@@ -1,13 +1,13 @@
 #include "SDL.h"
 #include <string>
+#include "render.h"
 
-int main(int argc, char* argv[])
+int main(int argc, char** args)
 {
-   (void)argc; (void)argv;
-
    SDL_Init(SDL_INIT_EVERYTHING);
-   SDL_Window* w = SDL_CreateWindow("quick", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_RESIZABLE);
-   SDL_Renderer* r = SDL_CreateRenderer(w, -1, 0);
+
+   Window window = Window("quick", {SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED}, { 1280, 720 }, SDL_WINDOW_RESIZABLE);
+   Renderer renderer = Renderer(window.Get(), -1, 0);
 
    int counter = 0;
 
@@ -25,16 +25,16 @@ int main(int argc, char* argv[])
       }
 
       counter++;
-      SDL_SetWindowTitle(w, std::to_string(counter).c_str());
+      SDL_SetWindowTitle(window.Get(), std::to_string(counter).c_str());
 
-      SDL_RenderClear(r);
-      SDL_SetRenderDrawColor(r, 144, 77, 122, 255);
-      SDL_RenderPresent(r);
-      SDL_RenderFlush(r);
+      SDL_RenderClear(renderer.Get());
+      SDL_SetRenderDrawColor(renderer.Get(), 144, 77, 122, 255);
+      SDL_RenderPresent(renderer.Get());
+      SDL_RenderFlush(renderer.Get());
    }
 
-   SDL_DestroyRenderer(r);
-   SDL_DestroyWindow(w);
+   SDL_DestroyRenderer(renderer.Get());
+   SDL_DestroyWindow(window.Get());
    SDL_Quit();
 
    return 0;

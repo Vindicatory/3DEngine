@@ -15,22 +15,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="templates.h">
-      <Filter>Header Files</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\..\..\..\..\..\SDL2\VisualC\x64\Debug\SDL2.lib" />
-    <Library Include="..\..\..\..\..\..\SDL2\VisualC\x64\Debug\SDL2main.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="render.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="basic_structs.h">
+    <ClInclude Include="basic_templates.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
