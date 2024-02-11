@@ -19,9 +19,7 @@ public:
    }
 
    ~Wrapper() {
-      if (obj) {
-         destroy(obj);
-      }
+      destroy(obj);
    }
 
    Wrapper(const Wrapper&) = delete;
@@ -94,17 +92,24 @@ struct engPoint2D {
    number x, y;
 };
 
+
 template<Numeric number>
 struct engPoint3D {
    number x, y, z;
 };
+
 
 template<Numeric number>
 struct engTriangle {
    engPoint3D<number> p[3];
 };
 
-template<Numeric number>
+
 struct engMesh {
-   std::vector<engTriangle<number>> tris;
+   std::vector<engTriangle<float>> tris;
+};
+
+
+struct mat4x4 {
+   float m[4][4] = { 0 };
 };
