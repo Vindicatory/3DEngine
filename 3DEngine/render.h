@@ -53,7 +53,7 @@ public:
 private:
 
    void MultiplyMatrixVector(const engPoint3D<float>& i, engPoint3D<float>& o, mat4x4& m);
-   void DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+   void DrawTriangle(const engTriangle<float> t);
 
    // ENSURE PLZ THAT packed is [0, 1] IM TOO LAZY TO CHECK IT
    Uint8 Unpack(float packed) {

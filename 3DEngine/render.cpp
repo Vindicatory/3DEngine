@@ -5,6 +5,8 @@
 #include <windows.h>
 #include <iostream>
 
+#include <algorithm>`
+
 #include <chrono>
 using namespace std::chrono;
 
@@ -112,7 +114,7 @@ void Renderer::DoRender()
 
    float fps = elapsedTime == 0 ? 0.f : howMuchNsInASec / elapsedTime;
 
-   SDL_SetWindowTitle(window->Get(), std::format("{} {}", "fps=", std::to_string(fps)).c_str());
+   SDL_SetWindowTitle(window->Get(), std::format("fps = {}", std::to_string(fps)).c_str());
 
    SDL_SetRenderDrawColor(obj, 0, 0, 0, 255); // background
    SDL_RenderClear(obj);
@@ -136,6 +138,9 @@ void Renderer::DoRender()
    matRotX.m[2][1] = -sinf(fTheta * 0.5f);
    matRotX.m[2][2] = cosf(fTheta * 0.5f);
    matRotX.m[3][3] = 1;
+
+   // Store triagles for rastering later
+   std::vector<engTriangle<float>> vecTrianglesToRaster;
 
    // draw Triangles
    for (auto tri : meshCube.tris)
@@ -204,10 +209,23 @@ void Renderer::DoRender()
          triProjected.p[2].x *= 0.5f * (float)engScreenSize.x;
          triProjected.p[2].y *= 0.5f * (float)engScreenSize.y;
 
-         DrawTriangle(triProjected, Unpack(dp), Unpack(dp), Unpack(dp), Unpack(dp));
+
+         triProjected.dp = dp;
+         vecTrianglesToRaster.push_back(triProjected); 
       }
    }
    //
+   
+   sort(vecTrianglesToRaster.begin(), vecTrianglesToRaster.end(), [](engTriangle<float>& t1, engTriangle<float>& t2)
+      {
+         float z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0f;
+         float z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0f;
+         return z1 > z2;
+      });
+
+   for (auto& tri : vecTrianglesToRaster) {
+      DrawTriangle(tri);
+   }
 
    SDL_RenderPresent(obj);
    SDL_RenderFlush(obj);
@@ -243,7 +261,7 @@ void Renderer::MultiplyMatrixVector(const engPoint3D<float>& i, engPoint3D<float
 }
 
 
-void Renderer::DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Renderer::DrawTriangle(const engTriangle<float> t)
 {
 #ifdef DEBUG_RENDER
    SDL_SetRenderDrawColor(obj, 0, 0, 0, 0); // debug black lines
@@ -252,6 +270,11 @@ void Renderer::DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 
    SDL_RenderDrawLineF(obj, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y);
    SDL_RenderDrawLineF(obj, t.p[0].x, t.p[0].y, t.p[2].x, t.p[2].y);
 #endif
+
+   Uint8 a = Unpack(t.dp);
+   Uint8 r = Unpack(t.dp);
+   Uint8 g = Unpack(t.dp);
+   Uint8 b = Unpack(t.dp);
 
    SDL_SetRenderDrawColor(obj, r, g, b, a); // triangle color
 
