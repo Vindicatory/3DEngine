@@ -8,6 +8,7 @@
 
 constexpr float maxFps = 60; // 0 obviously means unlimited
 constexpr float expectedFrameDur = maxFps <= 0 ? 0 : 1000.f / maxFps;
+extern engPoint2D<int> engScreenSize;
 
 void StartRenderLoop();
 
@@ -16,9 +17,9 @@ using WindowBase = Wrapper<SDL_Window, decltype(&SDL_CreateWindow), decltype(&SD
 
 class Window : public WindowBase {
 public:
-	Window(const char* title, engPoint2D<int> pos, engPoint2D<int> size, Uint32 flags)
-		: WindowBase(title, pos.x, pos.y, size.x, size.y, flags)
-	{}
+   Window(const char* title, engPoint2D<int> pos, engPoint2D<int> size, Uint32 flags)
+      : WindowBase(title, pos.x, pos.y, size.x, size.y, flags)
+   {}
 };
 
 
@@ -26,23 +27,34 @@ using RendererBase = Wrapper<SDL_Renderer, decltype(&SDL_CreateRenderer), declty
 
 class Renderer : public RendererBase {
 public:
-	static std::vector<Renderer*> activeRenderers;
+   static std::vector<Renderer*> activeRenderers;
 
 public:
-	Renderer(Window* w, int index, Uint32 flags) :
-		RendererBase(w->Get(), index, flags),
-		frameCount(0),
-		elapsedTime(0.f)
-	{
-		activeRenderers.push_back(this);
-		window = w;
-	}
+   Renderer(Window* w, int index, Uint32 flags) :
+      RendererBase(w->Get(), index, flags),
+      frameCount(0),
+      elapsedTime(0.f),
+      fTheta(0)
+   {
+      activeRenderers.push_back(this);
+      window = w;
+   }
 
-	void DoRender();
+   void DoRender();
+   void OnStart();
+
+   engMesh meshCube;
+   mat4x4 matProj;
+   float fTheta;
 
 private:
-	int frameCount;
-	float elapsedTime; // milliseconds
 
-	Window* window;
+   void MultiplyMatrixVector(const engPoint3D<float>& i, engPoint3D<float>& o, mat4x4& m);
+   void DrawTriangle(const engTriangle<float> t);
+
+private:
+   int frameCount;
+   float elapsedTime; // milliseconds
+
+   Window* window;
 };
