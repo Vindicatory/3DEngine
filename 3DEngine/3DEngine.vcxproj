@@ -135,6 +135,7 @@
   <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="render.cpp" />
+    <ClCompile Include="templates.cpp" />
     <ClCompile Include="templates.h" />
   </ItemGroup>
   <ItemGroup>

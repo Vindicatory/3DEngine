@@ -3,13 +3,14 @@
 #include <string>
 #include <cassert>
 #include <windows.h>
-#include <iostream>
+
+#include <algorithm>
 
 #include <chrono>
 using namespace std::chrono;
 
 std::vector<Renderer*> Renderer::activeRenderers{};
-extern engPoint2D<int> engScreenSize{ 1280, 720 };
+engPoint2D<int> engScreenSize{ 1280, 720 };
 
 // #define DEBUG_RENDER
 
@@ -42,34 +43,6 @@ void StartRenderLoop()
 
 void Renderer::OnStart()
 {
-   meshCube.tris = {
-
-      // SOUTH
-      { 0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f },
-      { 0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f },
-
-      // EAST                                                      
-      { 1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 1.0f },
-      { 1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f },
-
-      // NORTH                                                     
-      { 1.0f, 0.0f, 1.0f,    1.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f },
-      { 1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f },
-
-      // WEST                                                      
-      { 0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 0.0f },
-      { 0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,    0.0f, 0.0f, 0.0f },
-
-      // TOP                                                       
-      { 0.0f, 1.0f, 0.0f,    0.0f, 1.0f, 1.0f,    1.0f, 1.0f, 1.0f },
-      { 0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 1.0f,    1.0f, 1.0f, 0.0f },
-
-      // BOTTOM                                                    
-      { 1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 1.0f,    0.0f, 0.0f, 0.0f },
-      { 1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 0.0f,    1.0f, 0.0f, 0.0f },
-
-   };
-
    meshCube.LoadFromObjFile("monkey.obj");
 
    float fNear = 0.1f;
@@ -78,29 +51,7 @@ void Renderer::OnStart()
    float fAspectRatio = (float)engScreenSize.x / (float)engScreenSize.y;
    float fFovRad = 1.0f / tanf(fFov * 0.5f / 180.0f * 3.14159f);
 
-   matProj.m[0][0] = fAspectRatio * fFovRad;
-   matProj.m[1][1] = fFovRad;
-   matProj.m[2][2] = fFar / (fFar - fNear);
-   matProj.m[3][2] = (-fFar * fNear) / (fFar - fNear);
-   matProj.m[2][3] = 1.0f;
-   matProj.m[3][3] = 0.0f;
-}
-
-
-float Q_rsqrt(float number)
-{
-   long i;
-   float x2, y;
-   const float threehalfs = 1.5F;
-
-   x2 = number * 0.5F;
-   y = number;
-   i = *(long*)&y;                          // evil floating point bit level hacking
-   i = 0x5f3759df - (i >> 1);               // what the fuck? 
-   y = *(float*)&i;
-   y = y * (threehalfs - (x2 * y * y));     // 1st iteration
-   //	y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
-   return y;
+   matProj = Matrix_MakeProjection(fFov, fAspectRatio, fNear, fFar);
 }
 
 
@@ -112,86 +63,57 @@ void Renderer::DoRender()
 
    float fps = elapsedTime == 0 ? 0.f : howMuchNsInASec / elapsedTime;
 
-   SDL_SetWindowTitle(window->Get(), std::format("{} {}", "fps=", std::to_string(fps)).c_str());
+   SDL_SetWindowTitle(window->Get(), std::format("fps = {}", std::to_string(fps)).c_str());
 
    SDL_SetRenderDrawColor(obj, 0, 0, 0, 255); // background
    SDL_RenderClear(obj);
 
    // setup rotation matrices
-   mat4x4 matRotZ, matRotX;
    fTheta += 1.f / howMuchNsInASec * elapsedTime;
 
-   // Rotation Z
-   matRotZ.m[0][0] = cosf(fTheta);
-   matRotZ.m[0][1] = sinf(fTheta);
-   matRotZ.m[1][0] = -sinf(fTheta);
-   matRotZ.m[1][1] = cosf(fTheta);
-   matRotZ.m[2][2] = 1;
-   matRotZ.m[3][3] = 1;
+   mat4x4 matRotY = Matrix_MakeRotationY(fTheta);
 
-   // Rotation X
-   matRotX.m[0][0] = 1;
-   matRotX.m[1][1] = cosf(fTheta * 0.5f);
-   matRotX.m[1][2] = sinf(fTheta * 0.5f);
-   matRotX.m[2][1] = -sinf(fTheta * 0.5f);
-   matRotX.m[2][2] = cosf(fTheta * 0.5f);
-   matRotX.m[3][3] = 1;
+   mat4x4 mTrans = Matrix_MakeTranslation(0.f, 0.f, 5.f);
+   mat4x4 mWorld = mat4x4Identity;
+   mWorld = Matrix_MultiplyMatrix(mWorld, matRotY);
+   mWorld = Matrix_MultiplyMatrix(mWorld, mTrans);
+   
+   // Store triagles for rastering later
+   std::vector<engTriangle<float>> vecTrianglesToRaster;
 
    // draw Triangles
    for (auto tri : meshCube.tris)
    {
-      engTriangle<float> triProjected, triTranslated, triRotatedZ, triRotatedZX;
-
-      // rotate in Z-Axis
-      MultiplyMatrixVector(tri.p[0], triRotatedZ.p[0], matRotZ);
-      MultiplyMatrixVector(tri.p[1], triRotatedZ.p[1], matRotZ);
-      MultiplyMatrixVector(tri.p[2], triRotatedZ.p[2], matRotZ);
-
-      // rotate in X-Axis
-      MultiplyMatrixVector(triRotatedZ.p[0], triRotatedZX.p[0], matRotX);
-      MultiplyMatrixVector(triRotatedZ.p[1], triRotatedZX.p[1], matRotX);
-      MultiplyMatrixVector(triRotatedZ.p[2], triRotatedZX.p[2], matRotX);
-
+      engTriangle<float> triProjected, triTransformed;
+      
       // offset into the screen
-      triTranslated = triRotatedZX;
-      triTranslated.p[0].z = triRotatedZX.p[0].z + 8.0f;
-      triTranslated.p[1].z = triRotatedZX.p[1].z + 8.0f;
-      triTranslated.p[2].z = triRotatedZX.p[2].z + 8.0f;
+      triTransformed.p[0] = Matrix_MultiplyVector(mWorld, tri.p[0]);
+      triTransformed.p[1] = Matrix_MultiplyVector(mWorld, tri.p[1]);
+      triTransformed.p[2] = Matrix_MultiplyVector(mWorld, tri.p[2]);
 
       // Cross-Product to get surface normals
-      engPoint3D<float> normal, line1, line2;
-      line1.x = triTranslated.p[1].x - triTranslated.p[0].x;
-      line1.y = triTranslated.p[1].y - triTranslated.p[0].y;
-      line1.z = triTranslated.p[1].z - triTranslated.p[0].z;
+      
+      engPoint3D<float> line1 = triTransformed.p[1]- triTransformed.p[0];
+      engPoint3D<float> line2 = triTransformed.p[2] - triTransformed.p[0];
 
-      line2.x = triTranslated.p[2].x - triTranslated.p[0].x;
-      line2.y = triTranslated.p[2].y - triTranslated.p[0].y;
-      line2.z = triTranslated.p[2].z - triTranslated.p[0].z;
+      engPoint3D<float> normal = line1.CrossProduct(line2);
+      normal.Normalize();
 
-      normal.x = line1.y * line2.z - line1.z * line2.y;
-      normal.y = line1.z * line2.x - line1.x * line2.z;
-      normal.z = line1.x * line2.y - line1.y * line2.x;
-
-      float wtf = Q_rsqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-      normal.x *= wtf; normal.y *= wtf; normal.z *= wtf;
-
-      // we can see obly triangles, that normal dot product with cam forward is less that 0
-      if (normal.x * (triTranslated.p[0].x - camPos.x) +
-         normal.y * (triTranslated.p[0].y - camPos.y) +
-         normal.z * (triTranslated.p[0].z - camPos.z) < 0.0f) {
+      engPoint3D<float> camRay = triTransformed.p[0] - camPos;
+      
+      if (normal.DotProduct(camRay) < 0.0f) {
          // shading
-         engPoint3D<float> lightDirection = { 0.0f, 0.0f, -1.0f };
+         engPoint3D<float> lightDirection = { 0.0f, 1.0f, -1.0f };
          // normalize light vec
-         float wtfLight = Q_rsqrt(lightDirection.x * lightDirection.x + lightDirection.y * lightDirection.y + lightDirection.z * lightDirection.z);
-         lightDirection.x *= wtfLight; lightDirection.y *= wtfLight; lightDirection.z *= wtfLight;
+         lightDirection.Normalize();
 
          // dot product between light direction and each triangle normal
-         float dp = normal.x * lightDirection.x + normal.y * lightDirection.y + normal.z * lightDirection.z;
+         float dp = max(0.1f, lightDirection.DotProduct(normal));
 
          // project triangles from 3D --> 2D
-         MultiplyMatrixVector(triTranslated.p[0], triProjected.p[0], matProj);
-         MultiplyMatrixVector(triTranslated.p[1], triProjected.p[1], matProj);
-         MultiplyMatrixVector(triTranslated.p[2], triProjected.p[2], matProj);
+         triProjected.p[0] = Matrix_MultiplyVector(matProj, triTransformed.p[0]);
+         triProjected.p[1] = Matrix_MultiplyVector(matProj, triTransformed.p[1]);
+         triProjected.p[2] = Matrix_MultiplyVector(matProj, triTransformed.p[2]);
 
          // scale into view
          triProjected.p[0].x += 1.0f; triProjected.p[0].y += 1.0f;
@@ -204,10 +126,23 @@ void Renderer::DoRender()
          triProjected.p[2].x *= 0.5f * (float)engScreenSize.x;
          triProjected.p[2].y *= 0.5f * (float)engScreenSize.y;
 
-         DrawTriangle(triProjected, Unpack(dp), Unpack(dp), Unpack(dp), Unpack(dp));
+
+         triProjected.dp = dp;
+         vecTrianglesToRaster.push_back(triProjected); 
       }
    }
    //
+   
+   sort(vecTrianglesToRaster.begin(), vecTrianglesToRaster.end(), [](engTriangle<float>& t1, engTriangle<float>& t2)
+      {
+         float z1 = (t1.p[0].z + t1.p[1].z + t1.p[2].z) / 3.0f;
+         float z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0f;
+         return z1 > z2;
+      });
+
+   for (auto& tri : vecTrianglesToRaster) {
+      DrawTriangle(tri);
+   }
 
    SDL_RenderPresent(obj);
    SDL_RenderFlush(obj);
@@ -226,24 +161,7 @@ void Renderer::DoRender()
    }
 }
 
-
-void Renderer::MultiplyMatrixVector(const engPoint3D<float>& i, engPoint3D<float>& o, mat4x4& m)
-{
-   o.x = i.x * m.m[0][0] + i.y * m.m[1][0] + i.z * m.m[2][0] + m.m[3][0];
-   o.y = i.x * m.m[0][1] + i.y * m.m[1][1] + i.z * m.m[2][1] + m.m[3][1];
-   o.z = i.x * m.m[0][2] + i.y * m.m[1][2] + i.z * m.m[2][2] + m.m[3][2];
-   float w = i.x * m.m[0][3] + i.y * m.m[1][3] + i.z * m.m[2][3] + m.m[3][3];
-
-   if (w != 0.0f)
-   {
-      o.x /= w;
-      o.y /= w;
-      o.z /= w;
-   }
-}
-
-
-void Renderer::DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Renderer::DrawTriangle(const engTriangle<float> t)
 {
 #ifdef DEBUG_RENDER
    SDL_SetRenderDrawColor(obj, 0, 0, 0, 0); // debug black lines
@@ -252,6 +170,11 @@ void Renderer::DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 
    SDL_RenderDrawLineF(obj, t.p[1].x, t.p[1].y, t.p[2].x, t.p[2].y);
    SDL_RenderDrawLineF(obj, t.p[0].x, t.p[0].y, t.p[2].x, t.p[2].y);
 #endif
+
+   Uint8 a = Unpack(t.dp);
+   Uint8 r = Unpack(t.dp);
+   Uint8 g = Unpack(t.dp);
+   Uint8 b = Unpack(t.dp);
 
    SDL_SetRenderDrawColor(obj, r, g, b, a); // triangle color
 
