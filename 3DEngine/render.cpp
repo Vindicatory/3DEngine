@@ -11,6 +11,8 @@ using namespace std::chrono;
 std::vector<Renderer*> Renderer::activeRenderers{};
 extern engPoint2D<int> engScreenSize{ 1280, 720 };
 
+// #define DEBUG_RENDER
+
 void StartRenderLoop()
 {
    assert(Renderer::activeRenderers[0] != nullptr);
@@ -68,6 +70,8 @@ void Renderer::OnStart()
 
    };
 
+   meshCube.LoadFromObjFile("monkey.obj");
+
    float fNear = 0.1f;
    float fFar = 1000.0f;
    float fFov = 90.0f;
@@ -96,7 +100,6 @@ float Q_rsqrt(float number)
    y = *(float*)&i;
    y = y * (threehalfs - (x2 * y * y));     // 1st iteration
    //	y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
-
    return y;
 }
 
@@ -151,9 +154,9 @@ void Renderer::DoRender()
 
       // offset into the screen
       triTranslated = triRotatedZX;
-      triTranslated.p[0].z = triRotatedZX.p[0].z + 3.0f;
-      triTranslated.p[1].z = triRotatedZX.p[1].z + 3.0f;
-      triTranslated.p[2].z = triRotatedZX.p[2].z + 3.0f;
+      triTranslated.p[0].z = triRotatedZX.p[0].z + 8.0f;
+      triTranslated.p[1].z = triRotatedZX.p[1].z + 8.0f;
+      triTranslated.p[2].z = triRotatedZX.p[2].z + 8.0f;
 
       // Cross-Product to get surface normals
       engPoint3D<float> normal, line1, line2;
@@ -218,7 +221,7 @@ void Renderer::DoRender()
          return;
       }
 
-      Sleep((expectedFrameDurNs - elapsedTime) / 1e+6);
+      Sleep((expectedFrameDurNs - elapsedTime) / howMuchNsInAMs);
       elapsedTime = duration_cast<nanoseconds>(high_resolution_clock::now() - timeFrameStart).count();
    }
 }
@@ -242,7 +245,7 @@ void Renderer::MultiplyMatrixVector(const engPoint3D<float>& i, engPoint3D<float
 
 void Renderer::DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
-#ifdef _DEBUG
+#ifdef DEBUG_RENDER
    SDL_SetRenderDrawColor(obj, 0, 0, 0, 0); // debug black lines
 
    SDL_RenderDrawLineF(obj, t.p[0].x, t.p[0].y, t.p[1].x, t.p[1].y);

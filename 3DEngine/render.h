@@ -5,7 +5,8 @@
 #include <vector>
 #include <memory>
 
-constexpr double howMuchNsInASec = 1000000000.f;
+constexpr double howMuchNsInAMs = 1.0E6F;
+constexpr double howMuchNsInASec = 1.0E9F;
 constexpr float maxFps = 60.f; // 0 obviously means unlimited
 constexpr double expectedFrameDurNs = maxFps <= 0 ? 0 : howMuchNsInASec / maxFps;
 extern engPoint2D<int> engScreenSize;
