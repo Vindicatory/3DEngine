@@ -5,9 +5,9 @@
 #include <vector>
 #include <memory>
 
-
-constexpr float maxFps = 55; // 0 obviously means unlimited
-constexpr float expectedFrameDur = maxFps <= 0 ? 0 : 1000.f / maxFps;
+constexpr double howMuchNsInASec = 1000000000.f;
+constexpr float maxFps = 60.f; // 0 obviously means unlimited
+constexpr double expectedFrameDurNs = maxFps <= 0 ? 0 : howMuchNsInASec / maxFps;
 extern engPoint2D<int> engScreenSize;
 
 void StartRenderLoop();
@@ -61,7 +61,7 @@ private:
 
 private:
    int frameCount;
-   float elapsedTime; // milliseconds
+   long long elapsedTime; // nanoseconds (YES)
 
    Window* window;
 };

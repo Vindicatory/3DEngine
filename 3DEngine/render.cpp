@@ -83,13 +83,31 @@ void Renderer::OnStart()
 }
 
 
+float Q_rsqrt(float number)
+{
+   long i;
+   float x2, y;
+   const float threehalfs = 1.5F;
+
+   x2 = number * 0.5F;
+   y = number;
+   i = *(long*)&y;                          // evil floating point bit level hacking
+   i = 0x5f3759df - (i >> 1);               // what the fuck? 
+   y = *(float*)&i;
+   y = y * (threehalfs - (x2 * y * y));     // 1st iteration
+   //	y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
+
+   return y;
+}
+
+
 void Renderer::DoRender()
 {
    auto timeFrameStart = high_resolution_clock::now();
 
    frameCount++;
 
-   float fps = elapsedTime == 0 ? 0.f : 1000.f / elapsedTime;
+   float fps = elapsedTime == 0 ? 0.f : howMuchNsInASec / elapsedTime;
 
    SDL_SetWindowTitle(window->Get(), std::format("{} {}", "fps=", std::to_string(fps)).c_str());
 
@@ -98,7 +116,7 @@ void Renderer::DoRender()
 
    // setup rotation matrices
    mat4x4 matRotZ, matRotX;
-   fTheta += 0.001f * elapsedTime;
+   fTheta += 1.f / howMuchNsInASec * elapsedTime;
 
    // Rotation Z
    matRotZ.m[0][0] = cosf(fTheta);
@@ -151,8 +169,8 @@ void Renderer::DoRender()
       normal.y = line1.z * line2.x - line1.x * line2.z;
       normal.z = line1.x * line2.y - line1.y * line2.x;
 
-      float l = sqrtf(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-      normal.x /= l; normal.y /= l; normal.z /= l;
+      float wtf = Q_rsqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+      normal.x *= wtf; normal.y *= wtf; normal.z *= wtf;
 
       // we can see obly triangles, that normal dot product with cam forward is less that 0
       if (normal.x * (triTranslated.p[0].x - camPos.x) +
@@ -161,8 +179,8 @@ void Renderer::DoRender()
          // shading
          engPoint3D<float> lightDirection = { 0.0f, 0.0f, -1.0f };
          // normalize light vec
-         float l = sqrtf(lightDirection.x * lightDirection.x + lightDirection.y * lightDirection.y + lightDirection.z * lightDirection.z);
-         lightDirection.x /= l; lightDirection.y /= l; lightDirection.z /= l;
+         float wtfLight = Q_rsqrt(lightDirection.x * lightDirection.x + lightDirection.y * lightDirection.y + lightDirection.z * lightDirection.z);
+         lightDirection.x *= wtfLight; lightDirection.y *= wtfLight; lightDirection.z *= wtfLight;
 
          // dot product between light direction and each triangle normal
          float dp = normal.x * lightDirection.x + normal.y * lightDirection.y + normal.z * lightDirection.z;
@@ -191,16 +209,17 @@ void Renderer::DoRender()
    SDL_RenderPresent(obj);
    SDL_RenderFlush(obj);
 
-   elapsedTime = duration_cast<milliseconds>(high_resolution_clock::now() - timeFrameStart).count();
+   auto now = high_resolution_clock::now();
+   elapsedTime = duration_cast<nanoseconds>(now - timeFrameStart).count();
 
    // fps limitation
    if (maxFps > 0) {
-      if (elapsedTime >= expectedFrameDur) {
+      if (elapsedTime >= expectedFrameDurNs) {
          return;
       }
 
-      Sleep(expectedFrameDur - elapsedTime);
-      elapsedTime = duration_cast<milliseconds>(high_resolution_clock::now() - timeFrameStart).count();
+      Sleep((expectedFrameDurNs - elapsedTime) / 1e+6);
+      elapsedTime = duration_cast<nanoseconds>(high_resolution_clock::now() - timeFrameStart).count();
    }
 }
 
