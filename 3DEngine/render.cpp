@@ -26,6 +26,8 @@ void StartRenderLoop()
 
    while (true)
    {
+      CameraMovement movement;
+      
       if (SDL_PollEvent(&event))
       {
          if (event.type == SDL_QUIT)
@@ -34,7 +36,29 @@ void StartRenderLoop()
          }
       }
 
+      SDL_PumpEvents();
+      const Uint8* keyboardState = SDL_GetKeyboardState(NULL);
+      if (keyboardState[SDL_SCANCODE_A]) {
+         movement.left = true;
+      }
+      if (keyboardState[SDL_SCANCODE_W]) {
+         movement.forward = true;
+      }
+      if (keyboardState[SDL_SCANCODE_D]) {
+         movement.right = true;
+      }
+      if (keyboardState[SDL_SCANCODE_S]) {
+         movement.backward = true;
+      }
+      if (keyboardState[SDL_SCANCODE_Q]) {
+         movement.down = true;
+      }
+      if (keyboardState[SDL_SCANCODE_E]) {
+         movement.up = true;
+      }
+
       for (auto& renderer : Renderer::activeRenderers) {
+         renderer->camMovement = movement;
          renderer->DoRender();
       }
    }
@@ -43,12 +67,12 @@ void StartRenderLoop()
 
 void Renderer::OnStart()
 {
-   meshCube.LoadFromObjFile("monkey.obj");
+   meshCube.LoadFromObjFile("axis.obj");
 
    float fNear = 0.1f;
    float fFar = 1000.0f;
    float fFov = 90.0f;
-   float fAspectRatio = (float)engScreenSize.x / (float)engScreenSize.y;
+   float fAspectRatio = (float)engScreenSize.y / (float)engScreenSize.x;
    float fFovRad = 1.0f / tanf(fFov * 0.5f / 180.0f * 3.14159f);
 
    matProj = Matrix_MakeProjection(fFov, fAspectRatio, fNear, fFar);
@@ -69,7 +93,7 @@ void Renderer::DoRender()
    SDL_RenderClear(obj);
 
    // setup rotation matrices
-   fTheta += 1.f / howMuchNsInASec * elapsedTime;
+   //fTheta += 1.f / howMuchNsInASec * elapsedTime;
 
    mat4x4 matRotY = Matrix_MakeRotationY(fTheta);
 
@@ -77,14 +101,24 @@ void Renderer::DoRender()
    mat4x4 mWorld = mat4x4Identity;
    mWorld = Matrix_MultiplyMatrix(mWorld, matRotY);
    mWorld = Matrix_MultiplyMatrix(mWorld, mTrans);
+
+   // Handle camera movement
+   camPos = camPos + camMovement.GetOffset(elapsedTime);
+   
+   lookDir = {0, 0, 1};
+   engPoint3D<float> up = {0.f, 1.f, 0.f};
+   engPoint3D<float> target = camPos + lookDir;
+
+   mat4x4 mCamera = Matrix_PointAt(camPos, target, up);
+   mat4x4 matView = Matrix_QuickInverse(mCamera);
    
    // Store triagles for rastering later
    std::vector<engTriangle<float>> vecTrianglesToRaster;
-
+   
    // draw Triangles
    for (auto tri : meshCube.tris)
    {
-      engTriangle<float> triProjected, triTransformed;
+      engTriangle<float> triProjected, triTransformed, triViewed;
       
       // offset into the screen
       triTransformed.p[0] = Matrix_MultiplyVector(mWorld, tri.p[0]);
@@ -110,11 +144,24 @@ void Renderer::DoRender()
          // dot product between light direction and each triangle normal
          float dp = max(0.1f, lightDirection.DotProduct(normal));
 
+         // Convert World Space --> View Space
+         triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
+         triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
+         triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
+         
          // project triangles from 3D --> 2D
-         triProjected.p[0] = Matrix_MultiplyVector(matProj, triTransformed.p[0]);
-         triProjected.p[1] = Matrix_MultiplyVector(matProj, triTransformed.p[1]);
-         triProjected.p[2] = Matrix_MultiplyVector(matProj, triTransformed.p[2]);
+         triProjected.p[0] = Matrix_MultiplyVector(matProj, triViewed.p[0]);
+         triProjected.p[1] = Matrix_MultiplyVector(matProj, triViewed.p[1]);
+         triProjected.p[2] = Matrix_MultiplyVector(matProj, triViewed.p[2]);
 
+         // X/Y are inverted so put them back
+         triProjected.p[0].x *= -1.0f;
+         triProjected.p[1].x *= -1.0f;
+         triProjected.p[2].x *= -1.0f;
+         triProjected.p[0].y *= -1.0f;
+         triProjected.p[1].y *= -1.0f;
+         triProjected.p[2].y *= -1.0f;
+         
          // scale into view
          triProjected.p[0].x += 1.0f; triProjected.p[0].y += 1.0f;
          triProjected.p[1].x += 1.0f; triProjected.p[1].y += 1.0f;
@@ -160,6 +207,7 @@ void Renderer::DoRender()
       elapsedTime = duration_cast<nanoseconds>(high_resolution_clock::now() - timeFrameStart).count();
    }
 }
+
 
 void Renderer::DrawTriangle(const engTriangle<float> t)
 {

@@ -24,6 +24,28 @@ public:
 };
 
 
+struct CameraMovement
+{
+   bool left = false;
+   bool up = false;
+   bool right = false;
+   bool down = false;
+   bool forward = false;
+   bool backward = false;
+
+   float speed = 5.f / 1.0E9F;
+   
+   engPoint3D<float> GetOffset(long long elapsed) const
+   {
+      return {
+         speed * left * elapsed - speed * right * elapsed, // x
+         -speed * down * elapsed + speed * up * elapsed, // y
+         -speed * backward * elapsed + speed * forward * elapsed, // z
+      };
+   }
+};
+
+
 using RendererBase = Wrapper<SDL_Renderer, decltype(&SDL_CreateRenderer), decltype(&SDL_DestroyRenderer), &SDL_CreateRenderer, &SDL_DestroyRenderer>;
 
 class Renderer : public RendererBase {
@@ -48,7 +70,9 @@ public:
    mat4x4 matProj;
    float fTheta;
 
+   CameraMovement camMovement;
    engPoint3D<float> camPos;
+   engPoint3D<float> lookDir;
 
 private:
 
