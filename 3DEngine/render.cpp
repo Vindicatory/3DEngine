@@ -81,6 +81,9 @@ void Renderer::DoRender()
    // Store triagles for rastering later
    std::vector<engTriangle<float>> vecTrianglesToRaster;
 
+   // Store triagles for rastering later
+   std::vector<engTriangle<float>> vecTrianglesToRaster;
+
    // draw Triangles
    for (auto tri : meshCube.tris)
    {
@@ -161,7 +164,8 @@ void Renderer::DoRender()
    }
 }
 
-void Renderer::DrawTriangle(const engTriangle<float> t)
+
+void Renderer::DrawTriangle(const engTriangle<float> t, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
 #ifdef DEBUG_RENDER
    SDL_SetRenderDrawColor(obj, 0, 0, 0, 0); // debug black lines
