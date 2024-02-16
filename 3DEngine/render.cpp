@@ -39,22 +39,35 @@ void StartRenderLoop()
       SDL_PumpEvents();
       const Uint8* keyboardState = SDL_GetKeyboardState(NULL);
       if (keyboardState[SDL_SCANCODE_A]) {
-         movement.left = true;
+         movement.leftRight -= 1;
       }
       if (keyboardState[SDL_SCANCODE_W]) {
-         movement.forward = true;
+         movement.forwardBackward += 1;
       }
       if (keyboardState[SDL_SCANCODE_D]) {
-         movement.right = true;
+         movement.leftRight += 1;
       }
       if (keyboardState[SDL_SCANCODE_S]) {
-         movement.backward = true;
+         movement.forwardBackward -= 1;
       }
       if (keyboardState[SDL_SCANCODE_Q]) {
-         movement.down = true;
+         movement.upDown -= 1;
       }
       if (keyboardState[SDL_SCANCODE_E]) {
-         movement.up = true;
+         movement.upDown += 1;
+      }
+
+      // pitch & yaw
+
+      if (keyboardState[SDL_SCANCODE_LEFT]) {
+         movement.yawPith += -1.f;
+      }
+      if (keyboardState[SDL_SCANCODE_RIGHT]) {
+         movement.yawPith += 1.f;
+      }
+      if (keyboardState[SDL_SCANCODE_UP]) {
+      }
+      if (keyboardState[SDL_SCANCODE_DOWN]) {
       }
 
       for (auto& renderer : Renderer::activeRenderers) {
@@ -103,10 +116,17 @@ void Renderer::DoRender()
    mWorld = Matrix_MultiplyMatrix(mWorld, mTrans);
 
    // Handle camera movement
-   camPos = camPos + camMovement.GetOffset(elapsedTime);
-   
-   lookDir = {0, 0, 1};
    engPoint3D<float> up = {0.f, 1.f, 0.f};
+
+   mat4x4 mCameraRot = Matrix_MakeRotationY(camMovement.GetYawPith(elapsedTime));
+   lookDir = Matrix_MultiplyVector(mCameraRot, lookDir);
+   
+   camPos = camPos + camMovement.GetForward(lookDir, elapsedTime);
+   camPos = camPos + camMovement.GetUp(up, elapsedTime);
+
+   engPoint3D<float> right = lookDir.CrossProduct(up);
+   camPos = camPos + camMovement.GetRight(right, elapsedTime);
+   
    engPoint3D<float> target = camPos + lookDir;
 
    mat4x4 mCamera = Matrix_PointAt(camPos, target, up);

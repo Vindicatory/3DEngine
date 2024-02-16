@@ -26,22 +26,32 @@ public:
 
 struct CameraMovement
 {
-   bool left = false;
-   bool up = false;
-   bool right = false;
-   bool down = false;
-   bool forward = false;
-   bool backward = false;
+   int leftRight = 0;
+   int upDown = 0;
+   int forwardBackward = 0;
+
+   float yawPith = 0.f;
 
    float speed = 5.f / 1.0E9F;
    
-   engPoint3D<float> GetOffset(long long elapsed) const
+   engPoint3D<float> GetForward(engPoint3D<float>& lookDir,  long long elapsed) const
    {
-      return {
-         speed * left * elapsed - speed * right * elapsed, // x
-         -speed * down * elapsed + speed * up * elapsed, // y
-         -speed * backward * elapsed + speed * forward * elapsed, // z
-      };
+      return lookDir * forwardBackward * speed * elapsed;
+   }
+
+   engPoint3D<float> GetRight(engPoint3D<float>& rightDir, long long elapsed) const
+   {
+      return rightDir * leftRight * speed * elapsed;
+   }
+
+   engPoint3D<float> GetUp(engPoint3D<float>& up, long long elapsed) const
+   {
+      return up * upDown * speed * elapsed;
+   }
+
+   float GetYawPith(long long elapsed)
+   {
+      return speed * yawPith * elapsed * 0.2f;
    }
 };
 
@@ -72,7 +82,7 @@ public:
 
    CameraMovement camMovement;
    engPoint3D<float> camPos;
-   engPoint3D<float> lookDir;
+   engPoint3D<float> lookDir = {0, 0, 1};
 
 private:
 
