@@ -12,7 +12,7 @@ using namespace std::chrono;
 std::vector<Renderer*> Renderer::activeRenderers{};
 engPoint2D<int> engScreenSize{ 1280, 720 };
 
-// #define DEBUG_RENDER
+#define DEBUG_RENDER
 
 void StartRenderLoop()
 {
@@ -168,34 +168,51 @@ void Renderer::DoRender()
          triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
          triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
          triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
+
+         // Clip Viewed Triangle against near plane, this could form two additional
+         // additional triangles. 
+         int nClippedTriangles = 0;
+         engTriangle<float> clipped[2];
+         nClippedTriangles = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, triViewed, clipped[0], clipped[1]);
          
-         // project triangles from 3D --> 2D
-         triProjected.p[0] = Matrix_MultiplyVector(matProj, triViewed.p[0]);
-         triProjected.p[1] = Matrix_MultiplyVector(matProj, triViewed.p[1]);
-         triProjected.p[2] = Matrix_MultiplyVector(matProj, triViewed.p[2]);
+         for (int n = 0; n < nClippedTriangles; n++)
+         {
+            // Project triangles from 3D --> 2D
+            triProjected.p[0] = Matrix_MultiplyVector(matProj, clipped[n].p[0]);
+            triProjected.p[1] = Matrix_MultiplyVector(matProj, clipped[n].p[1]);
+            triProjected.p[2] = Matrix_MultiplyVector(matProj, clipped[n].p[2]);
+            triProjected.dp = clipped[n].dp;
 
-         // X/Y are inverted so put them back
-         triProjected.p[0].x *= -1.0f;
-         triProjected.p[1].x *= -1.0f;
-         triProjected.p[2].x *= -1.0f;
-         triProjected.p[0].y *= -1.0f;
-         triProjected.p[1].y *= -1.0f;
-         triProjected.p[2].y *= -1.0f;
-         
-         // scale into view
-         triProjected.p[0].x += 1.0f; triProjected.p[0].y += 1.0f;
-         triProjected.p[1].x += 1.0f; triProjected.p[1].y += 1.0f;
-         triProjected.p[2].x += 1.0f; triProjected.p[2].y += 1.0f;
-         triProjected.p[0].x *= 0.5f * (float)engScreenSize.x;
-         triProjected.p[0].y *= 0.5f * (float)engScreenSize.y;
-         triProjected.p[1].x *= 0.5f * (float)engScreenSize.x;
-         triProjected.p[1].y *= 0.5f * (float)engScreenSize.y;
-         triProjected.p[2].x *= 0.5f * (float)engScreenSize.x;
-         triProjected.p[2].y *= 0.5f * (float)engScreenSize.y;
+            // Scale into view, we moved the normalising into cartesian space
+            // out of the matrix.vector function from the previous videos, so
+            // do this manually
+            triProjected.p[0] = triProjected.p[0] / triProjected.p[0].w);
+            triProjected.p[1] = Vector_Div(triProjected.p[1], triProjected.p[1].w);
+            triProjected.p[2] = Vector_Div(triProjected.p[2], triProjected.p[2].w);
 
+            // X/Y are inverted so put them back
+            triProjected.p[0].x *= -1.0f;
+            triProjected.p[1].x *= -1.0f;
+            triProjected.p[2].x *= -1.0f;
+            triProjected.p[0].y *= -1.0f;
+            triProjected.p[1].y *= -1.0f;
+            triProjected.p[2].y *= -1.0f;
 
-         triProjected.dp = dp;
-         vecTrianglesToRaster.push_back(triProjected); 
+            // Offset verts into visible normalised space
+            vec3d vOffsetView = { 1,1,0 };
+            triProjected.p[0] = Vector_Add(triProjected.p[0], vOffsetView);
+            triProjected.p[1] = Vector_Add(triProjected.p[1], vOffsetView);
+            triProjected.p[2] = Vector_Add(triProjected.p[2], vOffsetView);
+            triProjected.p[0].x *= 0.5f * (float)ScreenWidth();
+            triProjected.p[0].y *= 0.5f * (float)ScreenHeight();
+            triProjected.p[1].x *= 0.5f * (float)ScreenWidth();
+            triProjected.p[1].y *= 0.5f * (float)ScreenHeight();
+            triProjected.p[2].x *= 0.5f * (float)ScreenWidth();
+            triProjected.p[2].y *= 0.5f * (float)ScreenHeight();
+
+            // Store triangle for sorting
+            vecTrianglesToRaster.push_back(triProjected);
+         }	
       }
    }
    //
