@@ -7,12 +7,11 @@
 #include <algorithm>
 
 #include <chrono>
+#include <list>
 using namespace std::chrono;
 
 std::vector<Renderer*> Renderer::activeRenderers{};
 engPoint2D<int> engScreenSize{ 1280, 720 };
-
-// #define DEBUG_RENDER
 
 void StartRenderLoop()
 {
@@ -81,6 +80,7 @@ void StartRenderLoop()
 void Renderer::OnStart()
 {
    meshCube.LoadFromObjFile("axis.obj");
+   meshCube.LoadFromObjFile("mountains.obj", true);
 
    float fNear = 0.1f;
    float fFar = 1000.0f;
@@ -134,6 +134,9 @@ void Renderer::DoRender()
    
    // Store triagles for rastering later
    std::vector<engTriangle<float>> vecTrianglesToRaster;
+
+   float width = (float)window->size.x;
+   float height = (float)window->size.y;
    
    // draw Triangles
    for (auto tri : meshCube.tris)
@@ -168,37 +171,55 @@ void Renderer::DoRender()
          triViewed.p[0] = Matrix_MultiplyVector(matView, triTransformed.p[0]);
          triViewed.p[1] = Matrix_MultiplyVector(matView, triTransformed.p[1]);
          triViewed.p[2] = Matrix_MultiplyVector(matView, triTransformed.p[2]);
+         triViewed.dp = dp;
          
-         // project triangles from 3D --> 2D
-         triProjected.p[0] = Matrix_MultiplyVector(matProj, triViewed.p[0]);
-         triProjected.p[1] = Matrix_MultiplyVector(matProj, triViewed.p[1]);
-         triProjected.p[2] = Matrix_MultiplyVector(matProj, triViewed.p[2]);
+         engTriangle<float> clipped[2];
+         int nClippedTriangles = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.1f }, { 0.0f, 0.0f, 1.0f }, triViewed, clipped[0], clipped[1]);
 
-         // X/Y are inverted so put them back
-         triProjected.p[0].x *= -1.0f;
-         triProjected.p[1].x *= -1.0f;
-         triProjected.p[2].x *= -1.0f;
-         triProjected.p[0].y *= -1.0f;
-         triProjected.p[1].y *= -1.0f;
-         triProjected.p[2].y *= -1.0f;
-         
-         // scale into view
-         triProjected.p[0].x += 1.0f; triProjected.p[0].y += 1.0f;
-         triProjected.p[1].x += 1.0f; triProjected.p[1].y += 1.0f;
-         triProjected.p[2].x += 1.0f; triProjected.p[2].y += 1.0f;
-         triProjected.p[0].x *= 0.5f * (float)engScreenSize.x;
-         triProjected.p[0].y *= 0.5f * (float)engScreenSize.y;
-         triProjected.p[1].x *= 0.5f * (float)engScreenSize.x;
-         triProjected.p[1].y *= 0.5f * (float)engScreenSize.y;
-         triProjected.p[2].x *= 0.5f * (float)engScreenSize.x;
-         triProjected.p[2].y *= 0.5f * (float)engScreenSize.y;
+         // We may end up with multiple triangles form the clip, so project as
+         // required
+         for (int n = 0; n < nClippedTriangles; n++)
+         {
+            // Project triangles from 3D --> 2D
+            triProjected.p[0] = Matrix_MultiplyVector(matProj, clipped[n].p[0]);
+            triProjected.p[1] = Matrix_MultiplyVector(matProj, clipped[n].p[1]);
+            triProjected.p[2] = Matrix_MultiplyVector(matProj, clipped[n].p[2]);
+            triProjected.dp = clipped[n].dp;
 
+            // Scale into view, we moved the normalising into cartesian space
+            // out of the matrix.vector function from the previous videos, so
+            // do this manually
+            
+            triProjected.p[0] = triProjected.p[0] / triProjected.p[0].w;
+            triProjected.p[1] = triProjected.p[1] / triProjected.p[1].w;
+            triProjected.p[2] = triProjected.p[2] / triProjected.p[2].w;
 
-         triProjected.dp = dp;
-         vecTrianglesToRaster.push_back(triProjected); 
+            // X/Y are inverted so put them back
+            triProjected.p[0].x *= -1.0f;
+            triProjected.p[1].x *= -1.0f;
+            triProjected.p[2].x *= -1.0f;
+            triProjected.p[0].y *= -1.0f;
+            triProjected.p[1].y *= -1.0f;
+            triProjected.p[2].y *= -1.0f;
+
+            // Offset verts into visible normalised space
+            engPoint3D<float> vOffsetView = { 1,1,0 };
+            triProjected.p[0] = triProjected.p[0] + vOffsetView;
+            triProjected.p[1] = triProjected.p[1] + vOffsetView;
+            triProjected.p[2] = triProjected.p[2] + vOffsetView;
+            
+            triProjected.p[0].x *= 0.5f * width;
+            triProjected.p[0].y *= 0.5f * height;
+            triProjected.p[1].x *= 0.5f * width;
+            triProjected.p[1].y *= 0.5f * height;
+            triProjected.p[2].x *= 0.5f * width;
+            triProjected.p[2].y *= 0.5f * height;
+
+            // Store triangle for sorting
+            vecTrianglesToRaster.push_back(triProjected);
+         }
       }
    }
-   //
    
    sort(vecTrianglesToRaster.begin(), vecTrianglesToRaster.end(), [](engTriangle<float>& t1, engTriangle<float>& t2)
       {
@@ -206,6 +227,51 @@ void Renderer::DoRender()
          float z2 = (t2.p[0].z + t2.p[1].z + t2.p[2].z) / 3.0f;
          return z1 > z2;
       });
+
+   for (auto &triToRaster : vecTrianglesToRaster)
+   {
+      // Clip triangles against all four screen edges, this could yield
+      // a bunch of triangles, so create a queue that we traverse to 
+      //  ensure we only test new triangles generated against planes
+      engTriangle<float> clipped[2];
+      std::list<engTriangle<float>> listTriangles;
+
+      // Add initial triangle
+      listTriangles.push_back(triToRaster);
+      int nNewTriangles = 1;
+
+      for (int p = 0; p < 4; p++)
+      {
+         int nTrisToAdd = 0;
+         while (nNewTriangles > 0)
+         {
+            // Take triangle from front of queue
+            engTriangle<float> test = listTriangles.front();
+            listTriangles.pop_front();
+            nNewTriangles--;
+
+            // Clip it against a plane. We only need to test each 
+            // subsequent plane, against subsequent new triangles
+            // as all triangles after a plane clip are guaranteed
+            // to lie on the inside of the plane. I like how this
+            // comment is almost completely and utterly justified
+            switch (p)
+            {
+            case 0:	nTrisToAdd = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+            case 1:	nTrisToAdd = Triangle_ClipAgainstPlane({ 0.0f, height - 1, 0.0f }, { 0.0f, -1.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+            case 2:	nTrisToAdd = Triangle_ClipAgainstPlane({ 0.0f, 0.0f, 0.0f }, { 1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+            case 3:	nTrisToAdd = Triangle_ClipAgainstPlane({ width - 1, 0.0f, 0.0f }, { -1.0f, 0.0f, 0.0f }, test, clipped[0], clipped[1]); break;
+            }
+
+            // Clipping may yield a variable number of triangles, so
+            // add these new ones to the back of the queue for subsequent
+            // clipping against next planes
+            for (int w = 0; w < nTrisToAdd; w++)
+               listTriangles.push_back(clipped[w]);
+         }
+         nNewTriangles = listTriangles.size();
+      }
+   }
 
    for (auto& tri : vecTrianglesToRaster) {
       DrawTriangle(tri);
@@ -243,14 +309,14 @@ void Renderer::DrawTriangle(const engTriangle<float> t)
    Uint8 r = Unpack(t.dp);
    Uint8 g = Unpack(t.dp);
    Uint8 b = Unpack(t.dp);
-
-   SDL_SetRenderDrawColor(obj, r, g, b, a); // triangle color
+   
+   SDL_Color col = {r, g, b, a};
 
    SDL_Vertex verts[3] =
    {
-       { SDL_FPoint{ t.p[0].x, t.p[0].y }, SDL_Color{ r, g, b, a }, SDL_FPoint{ 0 }, },
-       { SDL_FPoint{ t.p[1].x, t.p[1].y }, SDL_Color{ r, g, b, a }, SDL_FPoint{ 0 }, },
-       { SDL_FPoint{ t.p[2].x, t.p[2].y }, SDL_Color{ r, g, b, a }, SDL_FPoint{ 0 }, },
+       { SDL_FPoint{ t.p[0].x, t.p[0].y }, col, SDL_FPoint{ 0 }, },
+       { SDL_FPoint{ t.p[1].x, t.p[1].y }, col, SDL_FPoint{ 0 }, },
+       { SDL_FPoint{ t.p[2].x, t.p[2].y }, col, SDL_FPoint{ 0 }, },
    };
 
    SDL_RenderGeometry(obj, nullptr, verts, 3, nullptr, 0);

@@ -19,8 +19,11 @@ using WindowBase = Wrapper<SDL_Window, decltype(&SDL_CreateWindow), decltype(&SD
 class Window : public WindowBase {
 public:
    Window(const char* title, engPoint2D<int> pos, engPoint2D<int> size, Uint32 flags)
-      : WindowBase(title, pos.x, pos.y, size.x, size.y, flags)
+      : WindowBase(title, pos.x, pos.y, size.x, size.y, flags),
+   size(size)
    {}
+
+   engPoint2D<int> size;
 };
 
 
